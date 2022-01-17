@@ -3,7 +3,6 @@ package zio.sql
 import java.sql._
 
 import zio._
-import zio.blocking.Blocking
 import zio.stream._
 
 trait TransactionModule { self: Jdbc =>
@@ -16,25 +15,23 @@ trait TransactionModule { self: Jdbc =>
     def flatMap[R1 <: R, E1 >: E, B](f: A => ZTransaction[R1, E1, B]): ZTransaction[R1, E1, B] =
       ZTransaction(self.unwrap.flatMap(a => f(a).unwrap))
 
-    private[sql] def run(blocking: Blocking.Service, txn: Txn)(implicit
+    private[sql] def run(txn: Txn)(implicit
       ev: E <:< Exception
     ): ZManaged[R, Exception, A] =
       for {
-        r <- ZManaged.environment[R]
+//        r <- ZManaged.environment[R]
         a <- self.unwrap
                .mapError(ev)
-               .provide((r, txn))
+               .provide(txn)
                .tapBoth(
                  _ =>
-                   blocking
-                     .effectBlocking(txn.connection.rollback())
+                   ZIO.attemptBlocking(txn.connection.rollback())
                      .refineToOrDie[Exception]
-                     .toManaged_,
+                     .toManaged,
                  _ =>
-                   blocking
-                     .effectBlocking(txn.connection.commit())
+                     ZIO.attemptBlocking(txn.connection.commit())
                      .refineToOrDie[Exception]
-                     .toManaged_
+                     .toManaged
                )
       } yield a
 
@@ -91,12 +88,12 @@ trait TransactionModule { self: Jdbc =>
 
     def fail[E](e: => E): ZTransaction[Any, E, Nothing] = fromEffect(ZIO.fail(e))
 
-    def halt[E](e: => Cause[E]): ZTransaction[Any, E, Nothing] = fromEffect(ZIO.halt(e))
+    def halt[E](e: => Cause[E]): ZTransaction[Any, E, Nothing] = fromEffect(ZIO.failCause(e))
 
     def fromEffect[R, E, A](zio: ZIO[R, E, A]): ZTransaction[R, E, A] =
       ZTransaction(for {
         tuple <- ZManaged.environment[(R, Txn)]
-        a     <- zio.provide(tuple._1).toManaged_
+        a     <- zio.provide(tuple._1).toManaged
       } yield a)
 
     private val txn: ZTransaction[Any, Nothing, Txn] =

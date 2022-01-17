@@ -24,8 +24,8 @@ addCommandAlias("fmtOnce", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("fmt", "fmtOnce;fmtOnce")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-val zioVersion                 = "1.0.13"
-val zioSchemaVersion           = "0.1.7"
+val zioVersion                 = "2.0.0-RC1"
+val zioSchemaVersion           = "0.2.0-RC1-1"
 val testcontainersVersion      = "1.16.0"
 val testcontainersScalaVersion = "0.39.12"
 
